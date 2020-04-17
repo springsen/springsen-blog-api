@@ -36,7 +36,12 @@ export class UserService {
     password?: string,
   ): Promise<User> {
     if (password) {
-      const user = await this.userRepository.findOne({ username, password });
+      const user = await this.userRepository
+        .createQueryBuilder('user')
+        .where({ username, password })
+        .innerJoinAndSelect('user.roles', 'role')
+        .getOne();
+
       if (!user || user.password != password) {
         throw new BadRequestException('username or password is incorrect');
       }

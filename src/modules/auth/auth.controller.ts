@@ -2,13 +2,12 @@ import {
   Controller,
   Inject,
   forwardRef,
-  Get,
-  Req,
   BadRequestException,
+  Post,
+  Body,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserService } from '../user/user.service';
-import { Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -18,19 +17,20 @@ export class AuthController {
     private readonly userService: UserService,
   ) {}
 
-  @Get('login')
-  async login(@Req() request: Request) {
-    const { username, password } = request.headers;
+  @Post('login')
+  async login(@Body() body) {
+    const { username, password } = body;
     if (!(username && password)) {
       throw new BadRequestException('请检查认证参数');
     }
 
-    await this.userService.findOneWithPassword(
+    const user = await this.userService.findOneWithPassword(
       String(username),
       String(password),
     );
 
-    const token = await this.authService.signIn(String(username));
+    const token = await this.authService.signIn(user);
+
     return { token };
   }
 }
