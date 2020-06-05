@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException, Req } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Article } from './article.entity';
-import { Repository } from 'typeorm';
+import { Repository, Brackets } from 'typeorm';
 import { CreateArticleDto } from './dto/createa.article.dto';
 import { UpdateArticleDto } from './dto/update.artilce.dto';
 import { Tag } from '../tag/tag.entity';
 import { Category } from '../category/category.entity';
+import { UserException } from '../../errors/user.error';
 
 @Injectable()
 export class ArticleService {
@@ -20,7 +21,7 @@ export class ArticleService {
 
   /**
    * query article list
-   * @param query 查询 query
+   * @param query 查询 query 支持 page pageSize keyword cetogory
    */
   async index(query) {
     const pageSize = query.pageSize || 20;
@@ -31,11 +32,28 @@ export class ArticleService {
       .createQueryBuilder('aq')
       .leftJoinAndSelect('aq.tags', 'tag')
       .leftJoinAndSelect('aq.category', 'category')
-      .where('aq.title like :title', { title: `%${keyword}` })
+      .where(
+        new Brackets(qb => {
+          if (query.category) {
+            qb.where('aq.category = :category', {
+              category: `${query.category}`,
+            }).andWhere('aq.title like :title', {
+              title: `%%${keyword}%`,
+            });
+          } else if (query.keyword) {
+            qb.where('aq.title like :title', {
+              title: `%%${keyword}%`,
+            });
+          }
+        }),
+      )
       .orderBy('aq.title', 'DESC')
       .skip(page)
       .take(pageSize)
+      .select(['aq.id', 'aq.title', 'aq.content', 'tag', 'category'])
       .getManyAndCount();
+
+    if (result.length < 1) throw new UserException(40001, '没有相关记录');
 
     const totalPage = Math.ceil(total / pageSize);
 
@@ -56,9 +74,19 @@ export class ArticleService {
     const article = new Article();
     article.title = createArticleDto.title;
     article.content = createArticleDto.content;
+    article.description = createArticleDto.description;
 
-    const tags = await this.tagRepository.findByIds(createArticleDto.tags);
-    article.tags = tags;
+    if (createArticleDto.cover) {
+      article.cover = createArticleDto.cover;
+    } else {
+      // 默认给个标签
+      article.tags = await this.tagRepository.findByIds([1]);
+    }
+
+    if (createArticleDto.tags) {
+      const tags = await this.tagRepository.findByIds(createArticleDto.tags);
+      article.tags = tags;
+    }
 
     const category = await this.categoryRepository.findOne(
       createArticleDto.category,

@@ -4,10 +4,14 @@ import {
   forwardRef,
   BadRequestException,
   Post,
+  Get,
   Body,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserService } from '../user/user.service';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
@@ -29,8 +33,23 @@ export class AuthController {
       String(password),
     );
 
-    const token = await this.authService.signIn(user);
+    const accessToken = await this.authService.signIn(user);
+    const { roles } = user;
+    const roleResult: string[] = [];
+    if (roles.length > 0) {
+      roles.map(r => {
+        roleResult.push(r.role_name);
+      });
+    }
 
-    return { token };
+    return { accessToken, username, roles: roleResult };
+  }
+
+  @Get('userInfo')
+  @UseGuards(AuthGuard('jwt'))
+  async getUserInfo(@Req() req) {
+    return {
+      username: req.user.username,
+    };
   }
 }

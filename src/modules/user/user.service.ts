@@ -11,6 +11,7 @@ import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create.user';
 import { Role } from '../role/role.entity';
 import { AuthService } from '../auth/auth.service';
+import { UserException } from '../../errors/user.error';
 
 @Injectable()
 export class UserService {
@@ -43,11 +44,14 @@ export class UserService {
         .getOne();
 
       if (!user || user.password != password) {
-        throw new BadRequestException('username or password is incorrect');
+        throw new UserException(50005, 'username or password is incorrect');
       }
       return user;
     }
-    const user = await this.userRepository.findOne({ username });
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .where({ username })
+      .getOne();
     return user;
   }
 
